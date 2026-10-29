@@ -1,4 +1,3 @@
-
 name: Build SHADOW LOOP Android APK
 
 on:
@@ -31,8 +30,8 @@ jobs:
 
       - name: Install dependencies
         run: npm install
-        
-              - name: Prepare web assets
+
+      - name: Prepare web assets
         run: |
           mkdir -p www
           cp index.html style.css game.js www/
