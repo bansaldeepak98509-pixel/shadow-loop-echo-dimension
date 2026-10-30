@@ -12,10 +12,10 @@
     <header id="hud">
       <button id="btnPause" class="icon" aria-label="Pause">&#10074;&#10074;</button>
       <div class="hudmid">
-        <div id="lvlName">LEVEL 1</div>
+        <div id="lvlName">1 &middot; THE AWAKENING</div>
         <div id="hudStats"></div>
       </div>
-      <button id="btnRestart" class="icon" aria-label="Restart">&#8635;</button>
+      <button id="btnRestart" class="icon" aria-label="Restart level">&#8635;</button>
     </header>
 
     <div id="hint"></div>
@@ -36,36 +36,72 @@
     <div id="toast"></div>
   </div>
 
-  <div id="overlay">
-    <div id="scrTitle" class="screen">
+  <div id="flash"></div>
+  <div id="fade"></div>
+
+  <div id="overlay" class="show">
+    <div id="scrTitle" class="screen active">
       <h1>SHADOW LOOP</h1>
       <h2>ECHO DIMENSION</h2>
       <p class="sub" id="bestLine"></p>
-      <p class="how">Walk the maze. Press <b>LOOP</b> to rewind time. Your last run becomes an <b class="echo">ECHO</b> that repeats every move, pressing switches while you run for the exit.</p>
+      <p class="how">Record your run. Press <b>LOOP</b> to rewind time. Your last run becomes an <b class="echo">ECHO</b> that repeats every move while you race for the exit.</p>
       <button id="btnPlay" class="big">START</button>
-      <button id="btnSound" class="ghost">SOUND: ON</button>
+      <button id="btnLevels" class="ghost">LEVEL SELECT</button>
+      <button id="btnSettings" class="ghost">SETTINGS</button>
+    </div>
+
+    <div id="scrLevels" class="screen">
+      <h1 class="med">LEVEL SELECT</h1>
+      <div id="levelList"></div>
+      <button id="btnLevelsBack" class="ghost">BACK</button>
+    </div>
+
+    <div id="scrSettings" class="screen">
+      <h1 class="med">SETTINGS</h1>
+      <button id="btnSound" class="ghost">SOUND FX: ON</button>
+      <button id="btnFx" class="ghost">EFFECTS: FULL</button>
+      <p class="how">Reduced effects turns off fog drift, dust and screen shake for smoother play on slower phones.</p>
+      <button id="btnSettingsBack" class="big">BACK</button>
     </div>
 
     <div id="scrPause" class="screen">
       <h1 class="med">PAUSED</h1>
       <button id="btnResume" class="big">RESUME</button>
-      <button id="btnRetry" class="ghost">RETRY ATTEMPT (KEEP ECHO)</button>
+      <button id="btnRetry" class="ghost">RETRY ATTEMPT (KEEP ECHOES)</button>
       <button id="btnRestart2" class="ghost">RESTART LEVEL</button>
-      <button id="btnSound2" class="ghost">SOUND: ON</button>
+      <button id="btnLevels2" class="ghost">LEVEL SELECT</button>
       <button id="btnMenu" class="ghost">MAIN MENU</button>
     </div>
 
+    <div id="scrDead" class="screen">
+      <h1 class="med danger">SIGNAL LOST</h1>
+      <p class="sub">The laser caught you. Your Echoes are safe.</p>
+      <button id="btnDeadRetry" class="big">RETRY ATTEMPT</button>
+      <button id="btnDeadRestart" class="ghost">RESTART LEVEL</button>
+    </div>
+
     <div id="scrComplete" class="screen">
-      <h1 class="med">LEVEL COMPLETE</h1>
+      <h1 class="med" id="cName">LEVEL CLEARED</h1>
       <p class="sub">The Echo opened the way.</p>
       <div class="stats">
         <div><span id="cAttempts">0</span><small>ATTEMPTS</small></div>
         <div><span id="cSteps">0</span><small>STEPS</small></div>
         <div><span id="cBest">0</span><small>BEST</small></div>
       </div>
-      <p class="how">More dimensions arrive in the next update.</p>
-      <button id="btnReplay" class="big">REPLAY</button>
-      <button id="btnMenu2" class="ghost">MAIN MENU</button>
+      <button id="btnNext" class="big">NEXT LEVEL</button>
+      <button id="btnReplay" class="ghost">REPLAY LEVEL</button>
+      <button id="btnLevels3" class="ghost">LEVEL SELECT</button>
+    </div>
+
+    <div id="scrFinal" class="screen">
+      <h1 class="med">RIFT CLOSED</h1>
+      <h2>CAMPAIGN COMPLETE</h2>
+      <p class="how">You mastered every Echo and sealed the dimensional rift.</p>
+      <div class="stats">
+        <div><span id="fTotal">0</span><small>TOTAL BEST STEPS</small></div>
+      </div>
+      <button id="btnFinalLevels" class="big">LEVEL SELECT</button>
+      <button id="btnFinalMenu" class="ghost">MAIN MENU</button>
     </div>
   </div>
 

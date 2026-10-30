@@ -74,3 +74,37 @@ button.big:active, button.ghost:active { transform: scale(0.98); }
   .act { width: 72px; height: 72px; }
   #hint { min-height: 38px; font-size: 12px; }
 }
+
+/* ---------- Phase 1 additions ---------- */
+#stage::after { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px); }
+#fade { position: fixed; inset: 0; background: #05060f; opacity: 0; pointer-events: none; transition: opacity 0.22s ease; z-index: 20; }
+#fade.on { opacity: 1; pointer-events: auto; }
+#flash { position: fixed; inset: 0; background: radial-gradient(circle, rgba(255,45,85,0.0), rgba(255,45,85,0.55)); opacity: 0; pointer-events: none; z-index: 8; }
+#flash.go { animation: flashgo 0.6s ease-out; }
+@keyframes flashgo { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+h1.danger { color: #ff2d55; text-shadow: 0 0 18px #ff2d55, 0 0 40px rgba(255,45,85,0.4); }
+.screen { max-height: 100%; overflow-y: auto; }
+
+#levelList { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 12px; border-radius: 14px; text-align: left;
+  background: var(--panel); border: 1px solid rgba(39,230,255,0.4); color: var(--text); }
+.card:active { transform: scale(0.98); }
+.card .cn { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--cyan); color: var(--cyan); font-weight: bold; flex: none; }
+.card .cm { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.card .cm b { font-size: 13px; letter-spacing: 2px; }
+.card .cm small { font-size: 10px; letter-spacing: 1px; color: var(--dim); margin-top: 2px; }
+.card .cs { font-size: 9px; letter-spacing: 1.5px; color: var(--cyan); text-align: right; }
+.card.done { border-color: rgba(57,255,136,0.6); }
+.card.done .cn, .card.done .cs { color: #39ff88; border-color: #39ff88; }
+.card.locked { opacity: 0.45; border-color: rgba(127,143,191,0.4); }
+.card.locked .cn, .card.locked .cs { color: var(--dim); border-color: var(--dim); }
+
+@media (prefers-reduced-motion: reduce) {
+  .act.loop.ready { animation: none; }
+  #fade { transition: none; }
+  #flash.go { animation: none; }
+}
+@media (max-height: 640px) { #levelList { gap: 5px; } .card { padding: 6px 10px; } h1 { font-size: 32px; } }
