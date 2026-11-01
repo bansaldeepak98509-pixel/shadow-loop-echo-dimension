@@ -18,7 +18,13 @@
       <button id="btnRestart" class="icon" aria-label="Restart level">&#8635;</button>
     </header>
 
-    <div id="hint"></div>
+    <div id="hintBar"><div id="hint"></div><button id="btnHint" class="hintbtn" aria-label="Open hints">HINT</button></div>
+
+    <div id="coach" class="hidden">
+      <div class="coachtop"><span id="coachStep">STEP 1 / 5</span><button id="btnTutSkip" class="skip">SKIP TUTORIAL</button></div>
+      <b id="coachTitle">MOVE</b>
+      <p id="coachText"></p>
+    </div>
 
     <main id="stage"><canvas id="game"></canvas></main>
 
@@ -34,6 +40,7 @@
     </section>
 
     <div id="toast"></div>
+    <div id="banner"><small id="bnTitle"></small><b id="bnGoal"></b></div>
   </div>
 
   <div id="flash"></div>
@@ -47,6 +54,7 @@
       <p class="how">Record your run. Press <b>LOOP</b> to rewind time. Your last run becomes an <b class="echo">ECHO</b> that repeats every move while you race for the exit.</p>
       <button id="btnPlay" class="big">START</button>
       <button id="btnLevels" class="ghost">LEVEL SELECT</button>
+      <button id="btnTutTitle" class="ghost">REPLAY TUTORIAL</button>
       <button id="btnSettings" class="ghost">SETTINGS</button>
     </div>
 
@@ -60,6 +68,8 @@
       <h1 class="med">SETTINGS</h1>
       <button id="btnSound" class="ghost">SOUND FX: ON</button>
       <button id="btnFx" class="ghost">EFFECTS: FULL</button>
+      <button id="btnTutorial" class="ghost">REPLAY TUTORIAL</button>
+      <button id="btnAdPrivacy" class="ghost hidden">AD PRIVACY OPTIONS</button>
       <p class="how">Reduced effects turns off fog drift, dust and screen shake for smoother play on slower phones.</p>
       <button id="btnSettingsBack" class="big">BACK</button>
     </div>
@@ -71,6 +81,22 @@
       <button id="btnRestart2" class="ghost">RESTART LEVEL</button>
       <button id="btnLevels2" class="ghost">LEVEL SELECT</button>
       <button id="btnMenu" class="ghost">MAIN MENU</button>
+    </div>
+
+    <div id="scrHint" class="screen">
+      <h1 class="med" id="hintTitle">HINTS</h1>
+      <div id="hintSlots"></div>
+      <p class="adnote">Ads are optional. An ad only starts when you press the button, and every level can be solved without one.</p>
+      <p class="sub" id="adMsg"></p>
+      <button id="btnHintAd" class="big">WATCH AD TO UNLOCK HINT 1</button>
+      <button id="btnHintClose" class="ghost">BACK TO GAME</button>
+    </div>
+
+    <div id="scrTutDone" class="screen">
+      <h1 class="med">TUTORIAL COMPLETE</h1>
+      <p class="how">You recorded a run, sent your Echo to hold the plate, and escaped through the door. You are ready.</p>
+      <button id="btnTutPlay" class="big">START PLAYING</button>
+      <button id="btnTutMenu" class="ghost">MAIN MENU</button>
     </div>
 
     <div id="scrDead" class="screen">

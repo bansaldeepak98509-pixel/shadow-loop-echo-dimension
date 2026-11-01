@@ -108,3 +108,50 @@ h1.danger { color: #ff2d55; text-shadow: 0 0 18px #ff2d55, 0 0 40px rgba(255,45,
   #flash.go { animation: none; }
 }
 @media (max-height: 640px) { #levelList { gap: 5px; } .card { padding: 6px 10px; } h1 { font-size: 32px; } }
+
+/* ---------- Phase 2 additions ---------- */
+.hidden { display: none !important; }
+button { transition: transform 0.08s ease, background 0.12s ease, box-shadow 0.12s ease; }
+button:active { transform: scale(0.95); }
+.d:active, .act:active, .icon:active { box-shadow: 0 0 20px rgba(39,230,255,0.6); }
+
+#hintBar { display: flex; align-items: stretch; gap: 8px; margin: 4px 12px; }
+#hintBar #hint { margin: 0; flex: 1; }
+.hintbtn { flex: none; width: 58px; border-radius: 12px; border: 1px solid rgba(255,224,102,0.6); background: rgba(255,224,102,0.08);
+  color: #ffe066; font-size: 11px; font-weight: bold; letter-spacing: 1.5px; }
+
+#coach { margin: 4px 12px; padding: 10px 12px; border-radius: 14px; background: rgba(255,224,102,0.08);
+  border: 1px solid rgba(255,224,102,0.6); box-shadow: 0 0 16px rgba(255,224,102,0.15); animation: coachin 0.25s ease-out; }
+.coachtop { display: flex; justify-content: space-between; align-items: center; font-size: 10px; letter-spacing: 2px; color: #ffe066; }
+.skip { background: none; border: 1px solid rgba(255,224,102,0.5); color: #ffe066; border-radius: 10px; padding: 6px 10px; font-size: 10px; letter-spacing: 1.5px; }
+#coachTitle { display: block; margin: 6px 0 2px; font-size: 14px; letter-spacing: 3px; color: #fff3b0; }
+#coachText { margin: 0; font-size: 12.5px; line-height: 1.4; color: var(--text); }
+@keyframes coachin { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+
+.hl { outline: 2px solid #ffe066; outline-offset: 3px; border-radius: 14px; animation: hlpulse 1s infinite; }
+#dpad.hl { outline-offset: 6px; border-radius: 18px; }
+.act.hl { border-radius: 50%; }
+@keyframes hlpulse { 50% { outline-color: rgba(255,224,102,0.25); box-shadow: 0 0 22px rgba(255,224,102,0.7); } }
+
+#banner { position: fixed; left: 0; right: 0; top: 24%; text-align: center; pointer-events: none; opacity: 0; z-index: 6; }
+#banner small { display: block; font-size: 12px; letter-spacing: 5px; color: var(--cyan); text-shadow: 0 0 12px var(--cyan); }
+#banner b { display: block; margin-top: 6px; font-size: 13px; letter-spacing: 1.5px; color: var(--text); font-weight: normal; }
+#banner.go { animation: bannergo 2.6s ease-out; }
+@keyframes bannergo { 0% { opacity: 0; transform: translateY(10px); } 15% { opacity: 1; transform: none; } 75% { opacity: 1; } 100% { opacity: 0; } }
+
+#hintSlots { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+.slot { padding: 10px 12px; border-radius: 12px; text-align: left; background: var(--panel); border: 1px solid rgba(127,143,191,0.4); }
+.slot b { display: block; font-size: 11px; letter-spacing: 2px; color: var(--dim); }
+.slot p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--dim); white-space: pre-line; }
+.slot.open { border-color: rgba(255,224,102,0.6); }
+.slot.open b { color: #ffe066; }
+.slot.open p { color: var(--text); }
+.adnote { margin: 2px 0; font-size: 11px; line-height: 1.4; color: var(--dim); }
+button:disabled { opacity: 0.55; }
+
+@media (prefers-reduced-motion: reduce) {
+  .hl, #coach, #banner.go { animation: none; }
+  #banner.go { opacity: 1; }
+  button { transition: none; }
+}
+@media (max-height: 640px) { #coachText { font-size: 12px; } .slot p { font-size: 12px; } }

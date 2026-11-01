@@ -1,5 +1,5 @@
 'use strict';
-/* SHADOW LOOP: ECHO DIMENSION - game.js (Phase 1)
+/* SHADOW LOOP: ECHO DIMENSION - game.js (Phase 2, corrected)
    1) LEVELS  2) Engine (no DOM, unit-tested)  3) Save  4) Sound  5) UI + rendering */
 (function (root) {
 
@@ -126,6 +126,45 @@
       ]
     }
   ];
+
+  /* Level goals + three authored hints per level.
+     Hint 3 uses the notation "Down 4" / "Wait 3" so tests can parse it and replay it
+     through the real engine (see test.js). */
+  var GOALS = [
+    'Open the sealed door and reach the exit.',
+    'Unlock both locks, then reach the exit.',
+    'Survive the lasers and open the exit door.',
+    'Hold both plates with Echoes, then escape.',
+    'Close the rift: two plates, a switch, lasers.'
+  ];
+  var TIPS = [
+    [
+      'Look at the sealed door and the glowing plate. The door opens only while something stands on the plate, and you cannot stand on the plate and walk through the door at the same time.',
+      'Walk to the plate and press LOOP while standing on it. That run becomes your Echo. On the next attempt the Echo repeats the run and holds the plate while you walk to the door.',
+      'Attempt 1: Down 4, Right 6, Up 2 to the plate. Press LOOP.\nAttempt 2: Down 4, Right 3 to stand in front of the door. Wait 5 while your Echo walks to the plate. Then Down 3 through the open door to the exit.'
+    ],
+    [
+      'This door has two locks. Watch the small dots on the door: each one is a lock that must be lit. One lock is a plate that must be held, the other is a switch that stays on once flipped.',
+      'Your Echo can hold the plate in the small alcove at the bottom-left. Record a short run onto it and press LOOP. Next attempt the Echo holds the plate for you, so you are free to walk to the switch in the top-right and flip it. The switch stays on.',
+      'Attempt 1: Down 5 to stand on the plate in the bottom-left alcove. Press LOOP.\nAttempt 2: Right 2, Down 2, Right 2, Up 2, Right 2, Down 4 (you flip the switch on the way). Then Left 3, Down 3 through the door to the exit.'
+    ],
+    [
+      'The lasers pulse on a fixed rhythm: bright red is deadly and an orange flicker means it fires on your next move. Every move or Wait is one beat, so you can always watch the pattern first.',
+      'Lasers only hurt you; your Echo is a ghost and passes through them safely. The two lasers take turns, two beats each. Step onto the first one just after it goes dark (not while it flickers), then keep moving: the second one goes dark just as you reach it. Record that run to the far plate and press LOOP.',
+      'Attempt 1: Up 1, Right 2, then Wait 3 to let the lasers swap, then Right 4 across both lasers to the far plate. Press LOOP.\nAttempt 2: Down 3, Right 3 to stand in front of the door. Wait 4 while your Echo crosses the lasers and holds the plate. Then Down 3 through the door to the exit.'
+    ],
+    [
+      'The second plate cannot be reached on foot: the door in the right-hand corridor stays sealed until the first plate is held. You will need more than one Echo, one for each plate.',
+      'Record a run to the first plate (top-right) and press LOOP. In the next attempt Echo 1 holds that plate and the inner door stays open, so walk through it to the second plate and press LOOP again. Now one Echo stands on each plate.',
+      'Attempt 1: Right 6 to the first plate. Press LOOP.\nAttempt 2: Right 6 (your Echo walks the same path beside you), Down 4 through the inner door, Left 2 onto the second plate. Press LOOP.\nAttempt 3: Down 6, Right 3 to stand in front of the exit door. Wait 3 while both Echoes reach their plates. Then Down 2 to the exit.'
+    ],
+    [
+      'Lasers guard the first plate, a door guards the second, and the exit needs both plates plus the switch. Plan it in that order: first plate, second plate, then the switch and the exit.',
+      'Cross the laser pair right after they swap, like in Dead Signal, and record a run to the first plate. In attempt 2 repeat the crossing with Echo 1 beside you, go on through the door it holds open to the second plate, and press LOOP. With both plates held by Echoes, attempt 3 is just the switch in the bottom-right and the exit.',
+      'Attempt 1: Up 1, Right 2, Wait 3, Right 4 to the first plate. Press LOOP.\nAttempt 2: Up 1, Right 2, Wait 3, Right 4 (Echo 1 stands on the plate with you), Down 4 through the inner door, Left 2 onto the second plate. Press LOOP.\nAttempt 3: Down 5, Right 6 to flip the switch, Left 3, Wait 2, Down 2 through the exit door.'
+    ]
+  ];
+  LEVELS.forEach(function (d, i) { d.goal = GOALS[i]; d.tips = TIPS[i]; });
 
   var DIRS = { U: [0, -1], D: [0, 1], L: [-1, 0], R: [1, 0], W: [0, 0] };
 
@@ -254,6 +293,39 @@
   Engine.prototype.restart = function () { this.recs = []; this.attempt = 1; this.begin(); };
 
   /* =====================================================================
+     TUTORIAL FLOW - guides the player through the REAL Level 1 engine.
+     A step advances only when the real engine state satisfies done(engine).
+     ===================================================================== */
+  var TUTORIAL_STEPS = [
+    { id: 'move', title: 'MOVE', hl: 'dpad', target: { x: 1, y: 3 },
+      text: 'Tap the arrows or swipe on the maze to move your shadow. Reach the glowing marker.',
+      done: function (e) { return e.player.x === 1 && e.player.y === 3; } },
+    { id: 'plate', title: 'PRESSURE PLATE', hl: 'dpad', target: 'plate',
+      text: 'This glowing plate opens the sealed door, but only while something stands on it. Walk onto the plate.',
+      done: function (e) { return !!e.active.a; } },
+    { id: 'loop', title: 'RECORD A LOOP', hl: 'loop', target: null,
+      text: 'Every move you made was recorded. Press LOOP to rewind time and turn that run into an Echo.',
+      done: function (e) { return e.attempt >= 2 && e.recs.length >= 1; } },
+    { id: 'echo', title: 'ECHO REPLAY', hl: 'wait', target: 'door', echo: true,
+      text: 'Your translucent Echo now replays your recorded moves. Walk to the door and use WAIT until the Echo reaches the plate and holds it.',
+      done: function (e) { return !!e.doorOpen.D; } },
+    { id: 'exit', title: 'ESCAPE', hl: 'dpad', target: 'exit',
+      text: 'The Echo holds the plate, so the door stays open. Walk through it to the exit portal.',
+      done: function (e) { return e.won; } }
+  ];
+
+  function TutorialFlow() { this.i = 0; this.finished = false; }
+  TutorialFlow.prototype.step = function () { return TUTORIAL_STEPS[this.i] || null; };
+  TutorialFlow.prototype.update = function (e) {
+    var from = this.i;
+    while (this.i < TUTORIAL_STEPS.length && TUTORIAL_STEPS[this.i].done(e)) this.i++;
+    if (this.i >= TUTORIAL_STEPS.length) this.finished = true;
+    return this.i !== from;
+  };
+  TutorialFlow.prototype.canLoop = function () { var s = this.step(); return !!s && s.id === 'loop'; };
+  TutorialFlow.prototype.reset = function () { this.i = 0; this.finished = false; };
+
+  /* =====================================================================
      3) SAVE  (v2, migrates v1, tolerates missing / malformed / blocked storage)
      ===================================================================== */
   var Save = {
@@ -261,7 +333,8 @@
     blank: function () {
       var n = LEVELS.length, d = [], b = [];
       for (var i = 0; i < n; i++) { d.push(false); b.push(null); }
-      return { v: 2, unlocked: 1, done: d, best: b, sound: true, fx: true };
+      var h = []; for (var k = 0; k < n; k++) h.push(0);
+      return { v: 2, unlocked: 1, done: d, best: b, sound: true, fx: true, tutorial: false, hints: h, privacyOptions: false };
     },
     sanitize: function (o) {
       var s = this.blank(), n = LEVELS.length, i;
@@ -278,6 +351,12 @@
       s.unlocked = u;
       if (typeof o.sound === 'boolean') s.sound = o.sound;
       if (typeof o.fx === 'boolean') s.fx = o.fx;
+      if (Array.isArray(o.hints)) for (i = 0; i < n; i++) {
+        var hv = Math.floor(Number(o.hints[i]));
+        s.hints[i] = (isFinite(hv) && hv >= 0) ? Math.min(3, hv) : 0;
+      }
+      if (typeof o.privacyOptions === 'boolean') s.privacyOptions = o.privacyOptions;
+      s.tutorial = o.tutorial === true || s.done.some(function (x) { return x; });   // existing players skip the auto tutorial
       return s;
     },
     migrate: function (old) {          // v1 was { cleared, best, sound }
@@ -286,6 +365,7 @@
       if (old.cleared === true) { s.done[0] = true; s.unlocked = 2; }
       if (typeof old.best === 'number' && old.best > 0) s.best[0] = old.best;
       if (typeof old.sound === 'boolean') s.sound = old.sound;
+      s.tutorial = s.done[0];
       return this.sanitize(s);
     },
     load: function () {
@@ -330,6 +410,138 @@
   };
 
   /* =====================================================================
+     4b) REWARDED ADS (Google AdMob via @capacitor-community/admob)
+     - A hint is granted ONLY from a real reward callback (Rewarded event or the
+       showRewardVideoAd() result). Closing early, errors and no-fill grant nothing.
+     - Test IDs below are Google's public sample IDs. Production IDs are owner-supplied.
+     ===================================================================== */
+  var ADS_CONFIG = {
+    useTestAds: true,       // set to false ONLY in a production build, after filling in `production`
+    test: { appId: 'ca-app-pub-3940256099942544~3347511713', rewardedUnitId: 'ca-app-pub-3940256099942544/5224354917' },
+    production: { appId: null, rewardedUnitId: null }   // supplied by the owner from the AdMob console
+  };
+  // Event names of @capacitor-community/admob RewardAdPluginEvents (checked in CI by scripts/configure-android.js)
+  var AD_EVENTS = {
+    rewarded: 'onRewardedVideoAdReward', dismissed: 'onRewardedVideoAdDismissed',
+    failedToLoad: 'onRewardedVideoAdFailedToLoad', failedToShow: 'onRewardedVideoAdFailedToShow'
+  };
+  var NO_REWARD = function (m) { return { rewarded: false, message: m }; };
+
+  // Consent status values differ in spelling between plugin versions ('NOT_REQUIRED', 'notRequired'...): normalise.
+  function normStatus(s) { return String(s === undefined || s === null ? '' : s).replace(/[^a-z]/gi, '').toUpperCase(); }
+  // Consent gate. Plugin 6.x returns { status, isConsentFormAvailable } only; plugin >= 7.0.3 also returns canRequestAds.
+  // Anything unclear (UNKNOWN, REQUIRED, missing data) means NO ads.
+  function consentAllowsAds(info) {
+    if (!info || typeof info !== 'object') return false;
+    var st = normStatus(info.status);
+    if (typeof info.canRequestAds === 'boolean') return info.canRequestAds && st !== 'REQUIRED';
+    return st === 'NOTREQUIRED' || st === 'OBTAINED';
+  }
+
+  var Ads = {
+    plugin: null, missing: false, inited: false, sdkStarted: false, busy: false,
+    privacyOptions: false,   // true ONLY if the plugin supports the privacy form AND consent info says it is required
+    onPrivacyLearned: null,  // UI hook: remembers the privacy-options state
+    detect: function () {
+      this.plugin = null; this.missing = false;
+      try {
+        var cap = root.Capacitor;
+        if (cap && cap.isNativePlatform && cap.isNativePlatform()) {
+          // native app: is the AdMob plugin really part of this build?
+          if (cap.isPluginAvailable && !cap.isPluginAvailable('AdMob')) { this.missing = true; return; }
+          this.plugin = cap.registerPlugin ? cap.registerPlugin('AdMob') : null;
+          if (!this.plugin && cap.Plugins) this.plugin = cap.Plugins.AdMob || null;
+        }
+      } catch (e) { this.plugin = null; }
+    },
+    setPlugin: function (p) { this.plugin = p; this.missing = false; this.inited = false; this.sdkStarted = false; this.busy = false; this.privacyOptions = false; },
+    unitId: function () { return ADS_CONFIG.useTestAds ? ADS_CONFIG.test.rewardedUnitId : ADS_CONFIG.production.rewardedUnitId; },
+    // Documented order for plugin 6.x: initialize -> requestConsentInfo -> showConsentForm (only if REQUIRED) -> ads.
+    // No ad is requested unless consentAllowsAds() is true. A refusal is never cached, so the next press re-checks.
+    ensureInit: function () {
+      var self = this, p = this.plugin, first;
+      var blockedMsg = 'Ads need your consent choice. Press Watch Ad again to review it.';
+      if (this.inited) return Promise.resolve({ ok: true, message: '' });
+      return Promise.resolve()
+        .then(function () { if (!self.sdkStarted) return Promise.resolve(p.initialize({ initializeForTesting: !!ADS_CONFIG.useTestAds })).then(function () { self.sdkStarted = true; }); })
+        .then(function () { return p.requestConsentInfo(); })
+        .then(function (info) {
+          first = info;
+          if (info && info.isConsentFormAvailable && normStatus(info.status) === 'REQUIRED') return p.showConsentForm();   // Google UMP
+          return info;
+        })
+        .then(function (info) {
+          // if the form call returned nothing usable, ask for the real consent state instead of guessing
+          if (!info || (info.status === undefined && info.canRequestAds === undefined)) return p.requestConsentInfo();
+          return info;
+        })
+        .then(function (info) {
+          self.learnPrivacy(info && info.privacyOptionsRequirementStatus !== undefined ? info : first);
+          if (!consentAllowsAds(info)) return { ok: false, message: blockedMsg };
+          self.inited = true;
+          return { ok: true, message: '' };
+        })
+        .catch(function (e) { return { ok: false, failed: true, message: 'Ads could not start (' + ((e && e.message) || 'unknown error') + '). Try again later.' }; });
+    },
+    // Privacy options need plugin >= 7.0.3 (older plugins never return privacyOptionsRequirementStatus).
+    learnPrivacy: function (info) {
+      var st = info && typeof info === 'object' ? info.privacyOptionsRequirementStatus : undefined;
+      this.privacyOptions = !!(this.plugin && typeof this.plugin.showPrivacyOptionsForm === 'function' &&
+                               st !== undefined && st !== null && String(st).toUpperCase() === 'REQUIRED');
+      if (typeof this.onPrivacyLearned === 'function') this.onPrivacyLearned(this.privacyOptions);
+      return this.privacyOptions;
+    },
+    // Always resolves { ok:boolean, message:string } (short, honest text for a toast). Never throws.
+    // Called only from an explicit tap. Re-validates first, in the documented order (initialize -> requestConsentInfo),
+    // so a stale saved "privacy options available" flag can never open a form the plugin does not support.
+    showPrivacyOptions: function () {
+      var self = this, p = this.plugin;
+      if (!p) return Promise.resolve({ ok: false, message: 'Privacy options need the Android app' });
+      this.inited = false;
+      return this.ensureInit().then(function (init) {
+        if (init.failed) return { ok: false, message: 'Could not open privacy options' };
+        if (!self.privacyOptions) return { ok: false, message: 'Privacy options not available here' };
+        return Promise.resolve().then(function () { return p.showPrivacyOptionsForm(); }).then(
+          function () { self.inited = false; return { ok: true, message: 'Privacy choices updated' }; },   // re-check consent before the next ad
+          function () { return { ok: false, message: 'Could not open privacy options' }; });
+      });
+    },
+    // Always resolves with { rewarded:boolean, message:string }. Never throws.
+    showRewarded: function () {
+      var self = this, p = this.plugin;
+      if (!p) return Promise.resolve(NO_REWARD(this.missing ? 'This build does not include the ads component.' : 'Rewarded ads work only in the installed Android app.'));
+      if (this.busy) return Promise.resolve(NO_REWARD('An ad request is already in progress.'));
+      var adId = this.unitId();
+      if (!adId) return Promise.resolve(NO_REWARD('Production ads are not configured yet. No hint was unlocked.'));
+      this.busy = true;
+      return this.ensureInit().then(function (init) {
+        if (!init.ok) { self.busy = false; return NO_REWARD(init.message); }   // consent not confirmed => no ad request at all
+        return new Promise(function (resolve) {
+          var finished = false, handles = [], watchdog = null;
+          function done(r) {
+            if (finished) return;
+            finished = true; self.busy = false; clearTimeout(watchdog);
+            handles.forEach(function (h) { Promise.resolve(h).then(function (x) { if (x && x.remove) x.remove(); }, function () {}); });
+            resolve(r);
+          }
+          try {
+            handles.push(p.addListener(AD_EVENTS.rewarded, function () { done({ rewarded: true, message: '' }); }));
+            handles.push(p.addListener(AD_EVENTS.dismissed, function () { done(NO_REWARD('Ad closed before the reward. No hint was unlocked.')); }));
+            handles.push(p.addListener(AD_EVENTS.failedToLoad, function (e) { done(NO_REWARD('No ad is available right now' + (e && e.message ? ' (' + e.message + ')' : '') + '. Please try again later.')); }));
+            handles.push(p.addListener(AD_EVENTS.failedToShow, function (e) { done(NO_REWARD('The ad could not be shown' + (e && e.message ? ' (' + e.message + ')' : '') + '. No hint was unlocked.')); }));
+          } catch (e) { done(NO_REWARD('Ads are not available on this device.')); return; }
+          watchdog = setTimeout(function () { done(NO_REWARD('The ad did not finish. No hint was unlocked.')); }, 180000);
+          Promise.resolve()
+            .then(function () { return p.prepareRewardVideoAd({ adId: adId, isTesting: !!ADS_CONFIG.useTestAds }); })
+            .then(function () { return p.showRewardVideoAd(); })
+            .then(function (item) { if (item && (item.amount !== undefined || item.type !== undefined)) done({ rewarded: true, message: '' }); })
+            .catch(function (e) { done(NO_REWARD('No ad is available right now' + (e && e.message ? ' (' + e.message + ')' : '') + '. Please try again later.')); });
+        });
+      }).catch(function () { self.busy = false; return NO_REWARD('Ads are not available right now.'); });
+    }
+  };
+
+  /* =====================================================================
      5) UI + RENDERING  (started once; no listeners/loops are added afterwards)
      ===================================================================== */
   var THEMES = {
@@ -351,12 +563,15 @@
     try { rmq = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)'); } catch (e) {}
     function fxOn() { return save.fx && !(rmq && rmq.matches); }
 
-    var state = 'title';              // title | playing | paused | complete | dead
+    var state = 'title';              // title | playing | paused | hint | complete | dead
     var cur = 0, engine = new Engine(LEVELS[0]);
     var dpr = 1, cw = 0, ch = 0, cell = 0, ox = 0, oy = 0;
     var vp, ve, doorAnim, trail, deadT, shake = 0, particles = [], rings = [], motes = [], last = 0;
     var vig = document.createElement('canvas');
     var timers = [], trId = null, toastTimer = null, holdTO = null, holdIV = null;
+    var tut = null, adBusy = false, slots = [];
+    var hlEls = { dpad: $('dpad'), loop: $('btnLoop'), wait: $('btnWait') };
+    Ads.detect();
 
     for (var i = 0; i < 24; i++) motes.push({ x: Math.random(), y: Math.random(), s: 0.01 + Math.random() * 0.02, r: 1 + Math.random() * 1.5, p: Math.random() * 6 });
 
@@ -420,24 +635,25 @@
     function hintText() {
       var e = engine, def = LEVELS[cur];
       if (e.won) return 'Exit reached!';
-      if (def.tutorial && !e.echoes.length && e.plateDownAny()) return 'Plate active! Now press LOOP to record this run as your ECHO.';
+      if (def.tutorial && !e.echoes.length && plateHeld(e)) return 'Plate active! Now press LOOP to record this run as your ECHO.';
       var h = def.hints, k = Math.min(e.echoes.length, h.length - 1);
       return h[k];
     }
-    Engine.prototype.plateDownAny = function () {
-      var self = this;
-      return this.L.controls.some(function (c) { return c.kind === 'plate' && self.active[c.id]; });
-    };
+    // read-only UI helper (kept OUT of the Engine so the Phase 1 engine is never modified at runtime)
+    function plateHeld(e) { return e.L.controls.some(function (c) { return c.kind === 'plate' && e.active[c.id]; }); }
     function updateHud() {
       var e = engine;
-      $('lvlName').textContent = (cur + 1) + ' \u00B7 ' + e.L.name;
+      $('lvlName').textContent = tut ? 'TUTORIAL' : (cur + 1) + ' \u00B7 ' + e.L.name;
       $('hudStats').textContent = 'ATTEMPT ' + e.attempt + ' \u00B7 STEP ' + e.tick + ' \u00B7 ECHOES ' + e.echoes.length + '/' + e.max;
       $('hint').textContent = hintText();
-      $('btnLoop').classList.toggle('ready', LEVELS[cur].tutorial && !e.echoes.length && e.plateDownAny());
+      $('hintBar').classList.toggle('hidden', !!tut);
+      $('coach').classList.toggle('hidden', !tut);
+      if (tut) updateCoach();
+      $('btnLoop').classList.toggle('ready', !tut && LEVELS[cur].tutorial && !e.echoes.length && plateHeld(e));
     }
 
     /* ----- screens ----- */
-    var SCREENS = ['scrTitle', 'scrLevels', 'scrSettings', 'scrPause', 'scrComplete', 'scrDead', 'scrFinal'];
+    var SCREENS = ['scrTitle', 'scrLevels', 'scrSettings', 'scrPause', 'scrComplete', 'scrDead', 'scrFinal', 'scrHint', 'scrTutDone'];
     function showScreen(name) {
       SCREENS.forEach(function (id) { $(id).classList.toggle('active', id === name); });
       $('overlay').classList.toggle('show', !!name);
@@ -455,6 +671,7 @@
     function refreshSettings() {
       $('btnSound').textContent = 'SOUND FX: ' + (save.sound ? 'ON' : 'OFF');
       $('btnFx').textContent = 'EFFECTS: ' + (save.fx ? 'FULL' : 'REDUCED');
+      $('btnAdPrivacy').classList.toggle('hidden', !(Ads.plugin && save.privacyOptions));
     }
     var cards = [];
     function buildLevelCards() {
@@ -488,21 +705,107 @@
     }
     function openLevels() {
       if (state !== 'title') state = 'title';
-      stopHold(); refreshLevels(); showScreen('scrLevels');
+      tut = null; setHl(null); stopHold(); refreshLevels(); showScreen('scrLevels');
     }
-    function toMenu() { state = 'title'; stopHold(); clearTimers(); refreshTitle(); showScreen('scrTitle'); }
+    function toMenu() { state = 'title'; tut = null; setHl(null); stopHold(); clearTimers(); refreshTitle(); showScreen('scrTitle'); }
+
+    /* ----- tutorial ----- */
+    function setHl(name) {
+      Object.keys(hlEls).forEach(function (k) { hlEls[k].classList.toggle('hl', k === name); });
+    }
+    function updateCoach() {
+      var s = tut && tut.step();
+      if (!s) return;
+      $('coachStep').textContent = 'STEP ' + (tut.i + 1) + ' / 5';
+      $('coachTitle').textContent = s.title;
+      $('coachText').textContent = s.text;
+      setHl(s.hl);
+    }
+    function startTutorial() {
+      clearTimers(); stopHold();
+      tut = new TutorialFlow();
+      cur = 0; engine = new Engine(LEVELS[0]);
+      state = 'playing';
+      resize(); snap(); showScreen(null);
+    }
+    function tutAfter() {
+      tut.update(engine);
+      if (tut.finished || engine.won) finishTutorial(); else updateCoach();
+    }
+    function finishTutorial() {
+      save.tutorial = true; Save.write(save);
+      tut = null; setHl(null); state = 'complete';
+      Sound.win(); burst(engine.L.exit.x, engine.L.exit.y, '#7dfff0', 36); ring(engine.L.exit.x, engine.L.exit.y, '#7dfff0');
+      later(function () { if (state === 'complete') { updateHud(); showScreen('scrTutDone'); } }, 900);
+    }
+    function skipTutorial() { save.tutorial = true; Save.write(save); toMenu(); }
+    function restartTutorialRun() { engine.restart(); tut.reset(); snap(); state = 'playing'; showScreen(null); }
+
+    /* ----- level intro banner ----- */
+    function showBanner(i) {
+      $('bnTitle').textContent = 'LEVEL ' + (i + 1) + ' \u00B7 ' + LEVELS[i].name;
+      $('bnGoal').textContent = LEVELS[i].goal;
+      var b = $('banner'); b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
+    }
+
+    /* ----- hints (3 stages, each unlocked by one rewarded ad the player chooses to watch) ----- */
+    function buildHintSlots() {
+      var host = $('hintSlots');
+      for (var k = 0; k < 3; k++) {
+        var d = document.createElement('div'); d.className = 'slot';
+        var h = document.createElement('b'), p = document.createElement('p');
+        d.appendChild(h); d.appendChild(p); host.appendChild(d);
+        slots.push({ d: d, h: h, p: p });
+      }
+    }
+    function refreshHintPanel() {
+      var n = save.hints[cur] || 0, tips = LEVELS[cur].tips, names = ['GENTLE HINT', 'STRATEGY HINT', 'DETAILED SOLUTION'];
+      $('hintTitle').textContent = 'HINTS \u00B7 ' + LEVELS[cur].name;
+      slots.forEach(function (s, k) {
+        var open = k < n;
+        s.d.classList.toggle('open', open); s.d.classList.toggle('locked', !open);
+        s.h.textContent = (k + 1) + ' \u00B7 ' + names[k];
+        s.p.textContent = open ? tips[k] : (k === n ? 'Locked. Watch one optional ad to unlock.' : 'Unlock hint ' + k + ' first.');
+      });
+      var b = $('btnHintAd');
+      b.classList.toggle('hidden', n >= 3);
+      b.textContent = adBusy ? 'LOADING AD...' : 'WATCH AD TO UNLOCK HINT ' + (n + 1);
+      b.disabled = adBusy;
+    }
+    function setAdMsg(m) { $('adMsg').textContent = m || ''; }
+    function openHints() {
+      if (state !== 'playing' || tut) return;
+      stopHold(); state = 'hint'; setAdMsg(''); refreshHintPanel(); showScreen('scrHint');
+    }
+    function closeHints() { if (state !== 'hint') return; state = 'playing'; showScreen(null); }
+    function watchAd() {
+      Sound.init();
+      if (adBusy || state !== 'hint') return;       // the ad only ever starts from this explicit button press
+      var lvl = cur, n = save.hints[lvl] || 0;
+      if (n >= 3) return;
+      adBusy = true; setAdMsg('Loading ad...'); refreshHintPanel();
+      return Ads.showRewarded().then(function (res) {
+        adBusy = false;
+        if (res.rewarded) {
+          if ((save.hints[lvl] || 0) === n) { save.hints[lvl] = n + 1; Save.write(save); }
+          Sound.plate(); setAdMsg('Hint ' + (n + 1) + ' unlocked.');
+        } else setAdMsg(res.message);
+        refreshHintPanel();
+      });
+    }
 
     /* ----- level flow ----- */
     function startLevel(i) {
       clearTimers(); stopHold();
+      tut = null; setHl(null);
       cur = i; engine = new Engine(LEVELS[i]);
       state = 'playing';
-      resize(); snap(); showScreen(null);
+      resize(); snap(); showScreen(null); showBanner(i);
     }
     function pause() { if (state !== 'playing') return; stopHold(); state = 'paused'; showScreen('scrPause'); }
     function resume() { if (state !== 'paused') return; state = 'playing'; showScreen(null); }
-    function retryAttempt() { clearTimers(); engine.retry(); snap(); state = 'playing'; showScreen(null); }
-    function restartLevel() { clearTimers(); engine.restart(); snap(); state = 'playing'; showScreen(null); }
+    function retryAttempt() { clearTimers(); if (tut) { restartTutorialRun(); return; } engine.retry(); snap(); state = 'playing'; showScreen(null); }
+    function restartLevel() { clearTimers(); if (tut) { restartTutorialRun(); return; } engine.restart(); snap(); state = 'playing'; showScreen(null); }
 
     function act(a) {
       Sound.init();
@@ -524,6 +827,7 @@
         engine.L.doors.forEach(function (d) { if (engine.doorOpen[d.id]) burst(d.x, d.y, '#ff2d75', 10); });
       }
       updateHud();
+      if (tut) { tutAfter(); return; }
       if (r.dead) onDead();
       else if (r.won) onWin();
     }
@@ -531,10 +835,12 @@
     function doLoop() {
       Sound.init();
       if (state !== 'playing') return;
+      if (tut && !tut.canLoop()) { Sound.bump(); toast(plateHeld(engine) ? 'Follow the highlighted step first' : 'Stand on the plate first'); return; }
       if (engine.loop()) {
         Sound.loop(); burst(engine.L.start.x, engine.L.start.y, '#c04bff', 24); ring(engine.L.start.x, engine.L.start.y, '#c04bff');
         snap();
         toast('ECHO RECORDED \u2014 ' + engine.recs[engine.recs.length - 1].length + ' moves');
+        if (tut) tutAfter();
       } else toast('Move first to record an Echo');
     }
 
@@ -602,7 +908,7 @@
       var m = { ArrowUp: 'U', ArrowDown: 'D', ArrowLeft: 'L', ArrowRight: 'R', w: 'U', s: 'D', a: 'L', d: 'R', ' ': 'W' };
       if (m[e.key]) { e.preventDefault(); act(m[e.key]); }
       else if (e.key === 'e' || e.key === 'Enter') doLoop();
-      else if (e.key === 'Escape' || e.key === 'p') { if (state === 'paused') resume(); else pause(); }
+      else if (e.key === 'Escape' || e.key === 'p') { if (state === 'paused') resume(); else if (state === 'hint') closeHints(); else pause(); }
     });
     document.addEventListener('visibilitychange', function () { if (document.hidden) pause(); });
     window.addEventListener('resize', resize);
@@ -629,6 +935,16 @@
     ui('btnLevels3', openLevels);
     ui('btnFinalLevels', openLevels);
     ui('btnFinalMenu', toMenu);
+    ui('btnHint', openHints);
+    ui('btnHintAd', watchAd);
+    ui('btnHintClose', closeHints);
+    ui('btnTutSkip', skipTutorial);
+    ui('btnTutorial', startTutorial);
+    ui('btnTutTitle', startTutorial);
+    ui('btnTutPlay', function () { var n = nextIndex(); go(function () { startLevel(n < 0 ? 0 : n); }); });
+    ui('btnTutMenu', toMenu);
+    Ads.onPrivacyLearned = function (v) { if (save.privacyOptions !== v) { save.privacyOptions = v; Save.write(save); } refreshSettings(); };
+    ui('btnAdPrivacy', function () { Ads.showPrivacyOptions().then(function (r) { toast(r.message); refreshSettings(); }); });
 
     /* ----- drawing ----- */
     function rr(x, y, w, h, r) {
@@ -788,6 +1104,19 @@
         }
       });
 
+      // tutorial highlight (marker on the object the current step is about)
+      var tstep = tut && tut.step();
+      if (tstep) {
+        var tg = null;
+        if (tstep.target === 'plate') tg = L.controls[0]; else if (tstep.target === 'door') tg = L.doors[0];
+        else if (tstep.target === 'exit') tg = L.exit; else if (tstep.target) tg = tstep.target;
+        if (tg) {
+          var pu = 0.5 + 0.5 * Math.sin(t * 5);
+          ctx.strokeStyle = 'rgba(255,224,102,' + (0.55 + 0.4 * pu) + ')'; ctx.lineWidth = 3; glow('#ffe066', 14);
+          rr(tg.x * cell + 2, tg.y * cell + 2, cell - 4, cell - 4, cell * 0.2); ctx.stroke(); noGlow();
+        }
+      }
+
       // echo trails, then echoes (diamond silhouette, dashed outline, glitch offset)
       for (i = 0; i < trail.length; i++) {
         var tc = trail[i];
@@ -809,6 +1138,11 @@
         ctx.globalAlpha = 1;
       }
       ctx.globalAlpha = 1;
+
+      if (tstep && tstep.echo) {
+        ctx.strokeStyle = 'rgba(255,224,102,0.9)'; ctx.lineWidth = 2;
+        for (i = 0; i < ve.length; i++) { circ((ve[i].x + 0.5) * cell, (ve[i].y + 0.5) * cell, cell * (0.46 + 0.04 * Math.sin(t * 6))); ctx.stroke(); }
+      }
 
       // player (round, solid cyan) - fades out when destroyed
       var ppx = (vp.x + 0.5) * cell, ppy = (vp.y + 0.5) * cell;
@@ -843,17 +1177,19 @@
       requestAnimationFrame(frame);          // the ONLY rAF loop; it is started once below
     }
 
-    buildLevelCards(); refreshLevels();
+    buildLevelCards(); buildHintSlots(); refreshLevels();
     resize(); snap(); refreshTitle(); refreshSettings(); showScreen('scrTitle');
+    if (!save.tutorial) startTutorial();             // first launch only
     requestAnimationFrame(frame);
     return {
       engine: function () { return engine; }, act: act, loop: doLoop, startLevel: startLevel,
       getState: function () { return state; }, getSave: function () { return save; },
-      level: function () { return cur; }
+      level: function () { return cur; }, getTut: function () { return tut; }
     };
   }
 
-  var api = { Engine: Engine, LEVELS: LEVELS, Save: Save, parseLevel: parseLevel, startUI: startUI };
+  var api = { Engine: Engine, LEVELS: LEVELS, Save: Save, parseLevel: parseLevel, startUI: startUI,
+              Ads: Ads, ADS_CONFIG: ADS_CONFIG, AD_EVENTS: AD_EVENTS, TutorialFlow: TutorialFlow, TUTORIAL_STEPS: TUTORIAL_STEPS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   if (typeof document !== 'undefined') {
     var boot = function () { root.ShadowLoop = startUI(); };
