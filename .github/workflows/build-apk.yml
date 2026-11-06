@@ -42,6 +42,11 @@ jobs:
       - name: Sync web assets
         run: npx cap sync android
 
+      - name: Configure and verify AdMob
+        run: node scripts/configure-android.js
+        env:
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+
       - name: Build debug APK
         run: |
           cd android
