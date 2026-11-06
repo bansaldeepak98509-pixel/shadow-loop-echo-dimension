@@ -418,7 +418,7 @@
   var ADS_CONFIG = {
     useTestAds: true,       // set to false ONLY in a production build, after filling in `production`
     test: { appId: 'ca-app-pub-3940256099942544~3347511713', rewardedUnitId: 'ca-app-pub-3940256099942544/5224354917' },
-    production: { appId: null, rewardedUnitId: null }   // supplied by the owner from the AdMob console
+    production: { appId: 'ca-app-pub-1235586995779865~8033077180', rewardedUnitId: 'ca-app-pub-1235586995779865/8359400306' }   // supplied by the owner from the AdMob console
   };
   // Event names of @capacitor-community/admob RewardAdPluginEvents (checked in CI by scripts/configure-android.js)
   var AD_EVENTS = {
