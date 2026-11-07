@@ -458,32 +458,49 @@
     unitId: function () { return ADS_CONFIG.useTestAds ? ADS_CONFIG.test.rewardedUnitId : ADS_CONFIG.production.rewardedUnitId; },
     // Documented order for plugin 6.x: initialize -> requestConsentInfo -> showConsentForm (only if REQUIRED) -> ads.
     // No ad is requested unless consentAllowsAds() is true. A refusal is never cached, so the next press re-checks.
+    // UMP consent must be checked before initializing the Mobile Ads SDK.
     ensureInit: function () {
       var self = this, p = this.plugin, first;
       var blockedMsg = 'Ads need your consent choice. Press Watch Ad again to review it.';
       if (this.inited) return Promise.resolve({ ok: true, message: '' });
       return Promise.resolve()
-        .then(function () { if (!self.sdkStarted) return Promise.resolve(p.initialize({ initializeForTesting: !!ADS_CONFIG.useTestAds })).then(function () { self.sdkStarted = true; }); })
         .then(function () { return p.requestConsentInfo(); })
         .then(function (info) {
           first = info;
-          if (info && info.isConsentFormAvailable && normStatus(info.status) === 'REQUIRED') return p.showConsentForm();   // Google UMP
+          if (info && info.isConsentFormAvailable && normStatus(info.status) === 'REQUIRED') {
+            return p.showConsentForm();
+          }
           return info;
         })
         .then(function (info) {
-          // if the form call returned nothing usable, ask for the real consent state instead of guessing
-          if (!info || (info.status === undefined && info.canRequestAds === undefined)) return p.requestConsentInfo();
+          if (!info || (info.status === undefined && info.canRequestAds === undefined)) {
+            return p.requestConsentInfo();
+          }
           return info;
         })
         .then(function (info) {
           self.learnPrivacy(info && info.privacyOptionsRequirementStatus !== undefined ? info : first);
           if (!consentAllowsAds(info)) return { ok: false, message: blockedMsg };
+          if (!self.sdkStarted) {
+            return Promise.resolve(p.initialize({ initializeForTesting: !!ADS_CONFIG.useTestAds }))
+              .then(function () { self.sdkStarted = true; })
+              .then(function () {
+                self.inited = true;
+                return { ok: true, message: '' };
+              });
+          }
           self.inited = true;
           return { ok: true, message: '' };
         })
-        .catch(function (e) { return { ok: false, failed: true, message: 'Ads could not start (' + ((e && e.message) || 'unknown error') + '). Try again later.' }; });
+        .catch(function (e) {
+          return {
+            ok: false,
+            failed: true,
+            message: 'Ads could not start (' + ((e && e.message) || 'unknown error') + '). Try again later.'
+          };
+        });
     },
-    // Privacy options need plugin >= 7.0.3 (older plugins never return privacyOptionsRequirementStatus).
+
     learnPrivacy: function (info) {
       var st = info && typeof info === 'object' ? info.privacyOptionsRequirementStatus : undefined;
       this.privacyOptions = !!(this.plugin && typeof this.plugin.showPrivacyOptionsForm === 'function' &&
