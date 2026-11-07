@@ -17,7 +17,7 @@ const TEST_APP_ID = 'ca-app-pub-3940256099942544~3347511713';
 const APP_ID = process.env.ADMOB_APP_ID || TEST_APP_ID;
 const META_NAME = 'com.google.android.gms.ads.APPLICATION_ID';
 const META_TAG = '<meta-data android:name="' + META_NAME + '" android:value="@string/admob_app_id" />';
-const API_NAMES = ['initialize', 'requestConsentInfo', 'showConsentForm', 'prepareRewardVideoAd', 'showRewardVideoAd'];
+const API_NAMES = ['initialize', 'requestConsentInfo', 'showConsentForm', 'showPrivacyOptionsForm', 'prepareRewardVideoAd', 'showRewardVideoAd'];
 const EVENT_NAMES = ['onRewardedVideoAdReward', 'onRewardedVideoAdDismissed', 'onRewardedVideoAdFailedToLoad', 'onRewardedVideoAdFailedToShow'];
 
 const errors = [], warnings = [], fixes = [], info = [];
@@ -188,14 +188,21 @@ if (!flag('--skip-sync-check')) {
   if (fs.existsSync(gs) && !/capacitor-community-admob/.test(read(gs))) warn('capacitor.settings.gradle does not mention capacitor-community-admob');
 }
 
-/* ---------- 7. SDK levels (information + Play warning) ---------- */
+/* ---------- 7. SDK levels (Capacitor 8 / AdMob requirements + Play warning) ---------- */
 const vars = P('android/variables.gradle');
 if (fs.existsSync(vars)) {
   const v = read(vars), get = (k) => { const r = v.match(new RegExp(k + '\\s*=\\s*(\\d+)')); return r ? +r[1] : null; };
+  const min = get('minSdkVersion');
+  const compile = get('compileSdkVersion');
   const t = get('targetSdkVersion');
-  note('android minSdk ' + get('minSdkVersion') + ' | compileSdk ' + get('compileSdkVersion') + ' | targetSdk ' + t);
+  note('android minSdk ' + min + ' | compileSdk ' + compile + ' | targetSdk ' + t);
+  if (min === null) err('minSdkVersion could not be read from android/variables.gradle');
+  else if (min < 24) err('AdMob plugin 8.x requires minSdkVersion 24 or higher; found ' + min);
   if (t !== null && t < 36) warn('targetSdkVersion ' + t + ' is below 36: Google Play requires API 36 for new apps and updates (debug APKs are unaffected)');
+} else {
+  err('android/variables.gradle not found; Android SDK levels could not be verified');
 }
+
 
 /* ---------- report ---------- */
 const out = (t, a) => a.forEach((m) => console.log(t + ' ' + m));
