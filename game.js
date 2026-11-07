@@ -962,7 +962,13 @@
     ui('btnTutMenu', toMenu);
     Ads.onPrivacyLearned = function (v) { if (save.privacyOptions !== v) { save.privacyOptions = v; Save.write(save); } refreshSettings(); };
     ui('btnAdPrivacy', function () { Ads.showPrivacyOptions().then(function (r) { toast(r.message); refreshSettings(); }); });
-
+    
+     // Check UMP consent when the game starts.
+    Ads.ensureInit().then(function (r) {
+      refreshSettings();
+      if (!r.ok && r.message) toast(r.message);
+    });
+     
     /* ----- drawing ----- */
     function rr(x, y, w, h, r) {
       ctx.beginPath();
