@@ -4,9 +4,9 @@
   "private": true,
   "description": "SHADOW LOOP: ECHO DIMENSION - Android puzzle game",
   "dependencies": {
-    "@capacitor-community/admob": "6.2.0",
-    "@capacitor/android": "^6.2.0",
-    "@capacitor/cli": "^6.2.0",
-    "@capacitor/core": "^6.2.0"
+    "@capacitor-community/admob": "8.2.1",
+    "@capacitor/android": "8.6.0",
+    "@capacitor/cli": "8.6.0",
+    "@capacitor/core": "8.6.0"
   }
 }
