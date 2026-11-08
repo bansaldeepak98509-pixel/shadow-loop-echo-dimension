@@ -113,7 +113,8 @@ jobs:
 
           echo "--- signature ---"
           jarsigner -verify "$AAB" > /tmp/jarsigner.txt 2>&1 || true
-          tail -4 /tmp/jarsigner.txt
+          grep -m1 "jar verified" /tmp/jarsigner.txt || true
+          echo "(jarsigner also prints warnings about AAB entries; they are normal and do not affect Play)"
           grep -q "jar verified" /tmp/jarsigner.txt || { echo "FAIL: AAB is NOT signed"; exit 1; }
 
           echo "--- signer certificate (public information, not a secret) ---"
