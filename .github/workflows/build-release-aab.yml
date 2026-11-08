@@ -1,0 +1,157 @@
+name: Build SHADOW LOOP signed Release AAB
+
+# Manual only. Never runs on push, never touches main.
+on:
+  workflow_dispatch:
+    inputs:
+      version_code:
+        description: "versionCode (whole number, must increase with every Play upload)"
+        required: true
+        default: "1"
+      version_name:
+        description: "versionName shown to users (e.g. 1.0.0)"
+        required: true
+        default: "1.0.0"
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    # Secrets live in this environment, not at repository level, so the debug
+    # workflow can never read them. Add required reviewers to this environment.
+    environment: release
+
+    env:
+      ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
+      ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.p12
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      EXPECTED_PACKAGE: com.shadowloop.echodimension
+      EXPECTED_TARGET_SDK: "36"
+
+    steps:
+      - name: Checkout phase2-ads
+        uses: actions/checkout@v4
+        with:
+          ref: phase2-ads
+
+      - name: Show branch and commit
+        run: echo "branch=phase2-ads commit=${{ github.sha }} run=${{ github.run_id }}"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Prepare web assets
+        run: |
+          mkdir -p www
+          cp index.html style.css game.js www/
+
+      - name: Create Android project
+        run: npx cap add android
+
+      - name: Sync web assets and plugins
+        run: npx cap sync android
+
+      - name: Configure and verify Android/AdMob
+        run: node scripts/configure-android.js
+
+      - name: Check release signing secrets are present
+        run: |
+          missing=0
+          for v in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [ -z "${!v}" ]; then echo "MISSING: $v  (add it to the 'release' environment secrets)"; missing=1; fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Signing secrets incomplete - stopping before any build. Values are never printed."
+            exit 1
+          fi
+          echo "All four signing secrets are present (values not printed)."
+
+      - name: Decode keystore from base64 (PKCS12)
+        run: |
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
+          test -s "$ANDROID_KEYSTORE_PATH" || { echo "Decoded keystore is empty - check ANDROID_KEYSTORE_BASE64"; exit 1; }
+          echo "Keystore written to the runner temp dir ($(stat -c%s "$ANDROID_KEYSTORE_PATH") bytes). Contents not printed."
+
+      - name: Configure release signing and version numbers
+        run: |
+          node scripts/configure-release-signing.js \
+            --version-code "${{ inputs.version_code }}" \
+            --version-name "${{ inputs.version_name }}"
+
+      - name: Build signed release AAB
+        run: |
+          cd android
+          chmod +x gradlew
+          ./gradlew --no-daemon bundleRelease
+
+      - name: Verify signature, package, version and target SDK
+        run: |
+          set -euo pipefail
+          AAB="android/app/build/outputs/bundle/release/app-release.aab"
+          [ -f "$AAB" ] || { echo "FAIL: AAB not found at $AAB"; exit 1; }
+          echo "AAB: $AAB ($(stat -c%s "$AAB") bytes)"
+          unzip -l "$AAB" | grep -q "base/manifest/AndroidManifest.xml" \
+            || { echo "FAIL: AAB has no base/manifest/AndroidManifest.xml"; exit 1; }
+
+          echo "--- signature ---"
+          jarsigner -verify "$AAB" > /tmp/jarsigner.txt 2>&1 || true
+          tail -4 /tmp/jarsigner.txt
+          grep -q "jar verified" /tmp/jarsigner.txt || { echo "FAIL: AAB is NOT signed"; exit 1; }
+
+          echo "--- signer certificate (public information, not a secret) ---"
+          keytool -printcert -jarfile "$AAB" | grep -E "Owner:|Valid from:" | head -4
+
+          echo "--- manifest values ---"
+          MF=$(find android/app/build/intermediates -name AndroidManifest.xml -path '*release*' | grep -E 'merged_manifest' | head -1 || true)
+          if [ -z "$MF" ]; then
+            echo "FAIL: merged release manifest not found. Candidates:"
+            find android/app/build/intermediates -name AndroidManifest.xml | head -20
+            exit 1
+          fi
+          PKG=$(grep -o 'package="[^"]*"' "$MF" | head -1 | cut -d'"' -f2)
+          VC=$(grep -o 'android:versionCode="[0-9]*"' "$MF" | head -1 | cut -d'"' -f2)
+          VN=$(grep -o 'android:versionName="[^"]*"' "$MF" | head -1 | cut -d'"' -f2)
+          TS=$(grep -o 'android:targetSdkVersion="[0-9]*"' "$MF" | head -1 | cut -d'"' -f2)
+          echo "package=$PKG versionCode=$VC versionName=$VN targetSdk=$TS"
+
+          [ "$PKG" = "$EXPECTED_PACKAGE" ] || { echo "FAIL: package is '$PKG', expected '$EXPECTED_PACKAGE'"; exit 1; }
+          [ "$VC" = "${{ inputs.version_code }}" ] || { echo "FAIL: versionCode is '$VC', expected '${{ inputs.version_code }}'"; exit 1; }
+          [ "$VN" = "${{ inputs.version_name }}" ] || { echo "FAIL: versionName is '$VN', expected '${{ inputs.version_name }}'"; exit 1; }
+          [ "$TS" = "$EXPECTED_TARGET_SDK" ] || { echo "FAIL: targetSdk is '$TS', expected '$EXPECTED_TARGET_SDK'"; exit 1; }
+          grep -q "release signing" android/app/build.gradle || { echo "FAIL: signing block missing from app/build.gradle"; exit 1; }
+          echo "All release checks passed."
+
+      - name: Upload signed AAB
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadow-loop-release-aab-v${{ inputs.version_code }}
+          path: android/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      # Runs even when the build fails, so the keystore never lingers on the runner.
+      - name: Remove temporary keystore
+        if: always()
+        run: |
+          if [ -n "${ANDROID_KEYSTORE_PATH:-}" ] && [ -e "$ANDROID_KEYSTORE_PATH" ]; then
+            rm -f "$ANDROID_KEYSTORE_PATH"
+          fi
+          rm -f android/keystore.properties android/release.p12
+          echo "Temporary keystore removed (or was never created)."
