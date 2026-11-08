@@ -25,7 +25,8 @@ jobs:
 
     env:
       ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
-      ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/release.p12
+      # Literal path: the `runner` context is not available in a job-level env block.
+      ANDROID_KEYSTORE_PATH: /tmp/shadowloop-release.p12
       ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
       ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
       ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -87,7 +88,7 @@ jobs:
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > "$ANDROID_KEYSTORE_PATH"
           test -s "$ANDROID_KEYSTORE_PATH" || { echo "Decoded keystore is empty - check ANDROID_KEYSTORE_BASE64"; exit 1; }
-          echo "Keystore written to the runner temp dir ($(stat -c%s "$ANDROID_KEYSTORE_PATH") bytes). Contents not printed."
+          echo "Keystore written to a temporary path ($(stat -c%s "$ANDROID_KEYSTORE_PATH") bytes). Contents not printed."
 
       - name: Configure release signing and version numbers
         run: |
