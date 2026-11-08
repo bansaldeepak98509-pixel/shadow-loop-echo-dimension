@@ -5,17 +5,22 @@ on:
   push:
     branches:
       - main
+      - phase2-ads
 
 permissions:
   contents: read
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # ubuntu-24.04 ships Android SDK Platform 36 and Build-tools 36.x - pinned on purpose
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Show branch and commit
+        run: echo "branch=${{ github.ref_name }} commit=${{ github.sha }}"
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -47,6 +52,12 @@ jobs:
         env:
           ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
 
+      - name: Show SDK values used by the build
+        run: |
+          cat android/variables.gradle
+          grep -n "com.android.tools.build:gradle" android/build.gradle
+          grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties
+
       - name: Build debug APK
         run: |
           cd android
@@ -56,7 +67,14 @@ jobs:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: shadow-loop-debug-apk
+          name: shadow-loop-debug-apk-${{ github.ref_name }}
           path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
+
+      # Runs AFTER the APK is uploaded on purpose: if this step goes red, you still get your APK
+      # and the log tells us exactly which value is off.
+      - name: Verify final Android config (target API 36)
+        run: node scripts/configure-android.js --check-only
+        env:
+          ADMOB_APP_ID: ${{ vars.ADMOB_APP_ID }}
