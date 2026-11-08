@@ -188,21 +188,41 @@ if (!flag('--skip-sync-check')) {
   if (fs.existsSync(gs) && !/capacitor-community-admob/.test(read(gs))) warn('capacitor.settings.gradle does not mention capacitor-community-admob');
 }
 
-/* ---------- 7. SDK levels (Capacitor 8 / AdMob requirements + Play warning) ---------- */
+/* ---------- 7. SDK levels (Capacitor 8 template + Google Play API 36 rule) ---------- */
+// Google Play: new apps and app updates must target API 36+ (required since 31 Aug 2026).
+// Capacitor 8.6.0's `cap add android` template already generates 24 / 36 / 36 - this block makes it
+// a hard requirement instead of a warning, and repairs a stale value instead of ignoring it.
+const NEED = { minSdkVersion: 24, compileSdkVersion: 36, targetSdkVersion: 36 };
 const vars = P('android/variables.gradle');
-if (fs.existsSync(vars)) {
-  const v = read(vars), get = (k) => { const r = v.match(new RegExp(k + '\\s*=\\s*(\\d+)')); return r ? +r[1] : null; };
-  const min = get('minSdkVersion');
-  const compile = get('compileSdkVersion');
-  const t = get('targetSdkVersion');
-  note('android minSdk ' + min + ' | compileSdk ' + compile + ' | targetSdk ' + t);
+if (!fs.existsSync(vars)) err('android/variables.gradle not found; Android SDK levels could not be verified');
+else {
+  const get = (k) => { const r = read(vars).match(new RegExp(k + '\\s*=\\s*(\\d+)')); return r ? +r[1] : null; };
+  const min = get('minSdkVersion'), compile = get('compileSdkVersion'), target = get('targetSdkVersion');
+  note('android minSdk ' + min + ' | compileSdk ' + compile + ' | targetSdk ' + target +
+       ' (need min ' + NEED.minSdkVersion + ', compile/target ' + NEED.compileSdkVersion + ')');
   if (min === null) err('minSdkVersion could not be read from android/variables.gradle');
-  else if (min < 24) err('AdMob plugin 8.x requires minSdkVersion 24 or higher; found ' + min);
-  if (t !== null && t < 36) warn('targetSdkVersion ' + t + ' is below 36: Google Play requires API 36 for new apps and updates (debug APKs are unaffected)');
-} else {
-  err('android/variables.gradle not found; Android SDK levels could not be verified');
+  else if (min < NEED.minSdkVersion) err('AdMob plugin 8.x requires minSdkVersion ' + NEED.minSdkVersion + ' or higher; found ' + min);
+  ['compileSdkVersion', 'targetSdkVersion'].forEach((k) => {
+    const val = k === 'compileSdkVersion' ? compile : target;
+    if (val === null) { err(k + ' could not be read from android/variables.gradle'); return; }
+    if (val >= NEED[k]) { note(k + ' ' + val + ' is OK for Google Play (API ' + NEED[k] + ')'); return; }
+    correct(k + ' raised from ' + val + ' to ' + NEED[k] + ' (Google Play requires API 36 for new apps and updates)', () => {
+      fs.writeFileSync(vars, read(vars).replace(new RegExp('(' + k + '\\s*=\\s*)\\d+'), '$1' + NEED[k]));
+    });
+  });
 }
 
+/* ---------- 7b. build toolchain that must support API 36 ---------- */
+const agpSrc = fs.existsSync(P('android/build.gradle')) ? read(P('android/build.gradle')) : '';
+const wrapSrc = fs.existsSync(P('android/gradle/wrapper/gradle-wrapper.properties')) ? read(P('android/gradle/wrapper/gradle-wrapper.properties')) : '';
+const agp = (agpSrc.match(/com\.android\.tools\.build:gradle:([\d.]+)/) || [])[1];
+const gradle = (wrapSrc.match(/gradle-([\d.]+)-(?:all|bin)\.zip/) || [])[1];
+note('Android Gradle Plugin ' + (agp || 'unknown') + ' | Gradle wrapper ' + (gradle || 'unknown') +
+     ' (Capacitor 8.6.0 template ships 8.13.0 / 8.14.3)');
+if (!agp) warn('AGP version not found in android/build.gradle');
+else if (cmp(ver(agp), [8, 9, 1]) < 0) warn('AGP ' + agp + ' is older than 8.9.1 and may not build compileSdk 36 cleanly');
+if (!gradle) warn('Gradle wrapper version not found in android/gradle/wrapper/gradle-wrapper.properties');
+else if (cmp(ver(gradle), [8, 11, 0]) < 0) warn('Gradle ' + gradle + ' is older than 8.11; API 36 builds expect the recent wrapper the template ships');
 
 /* ---------- report ---------- */
 const out = (t, a) => a.forEach((m) => console.log(t + ' ' + m));
